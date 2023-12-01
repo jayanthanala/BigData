@@ -25,22 +25,23 @@ sc.setLogLevel('OFF')
 
 file_path_list = ['/shared/CS-GY-6513/projects/WildLife/processed-data-oct/*.parquet']
 df = spark.read.parquet(*file_path_list)
-#df =  pd.read_parquet('/home/ja4874_nyu_edu/processed-data-oct/crawl_data-1696285390462-0.parquet', engine='pyarrow')
 
-for c in df.columns:
-    df = df.withColumnRenamed(c, c.replace(" ", "_"))
+df2 = df.select([col(c).alias(
+        c.replace( '(', '')
+        .replace( ')', '')
+        .replace( ',', '')
+        .replace( ';', '')
+        .replace( '{', '')
+        .replace( '}', '')
+        .replace( '\n', '')
+        .replace( '\t', '')
+        .replace( ' ', '_')
+    ) for c in df.columns])
     
-df = spark.read.schema(df.schema).parquet(*file_path_list)
-# df.write.csv('out1.csv')
-print(df.count())
-df.dropDuplicates()
-print(df.count())
+df3 = spark.read.schema(df2.schema).parquet(*file_path_list)
+df3.printSchema()
+df3.show()
+df3.count()
 
-
-df.limit(20)
-
-df = df.withColumn('title', when(coalesce('title', 'name', 'description', 'product').isNull(), 'PASS').otherwise('FAIL'))
-
-# do not above line
-
-df.select().where((df.description=="")).count()
+df4 = df3.dropDuplicates()
+df4.count()
