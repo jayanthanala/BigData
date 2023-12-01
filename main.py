@@ -40,7 +40,7 @@ df2 = df.select([col(c).alias(
     
 df3 = spark.read.schema(df2.schema).parquet(*file_path_list)
 df3.printSchema()
-df3.show()
+df3.show(1,False)
 df3.count()
 
 df4 = df3.dropDuplicates()
