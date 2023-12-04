@@ -5,9 +5,12 @@ import datetime
 from pathlib import Path
 import os
 import pandas as pd
+import numpy as np
 import pyarrow.parquet as pq
 import pyarrow as pa
 import sys
+import nltk
+from nltk.tokenize import word_tokenize
 
 from pyspark import SparkContext, SparkConf
 from pyspark.sql.functions import format_string,col, when, coalesce
@@ -45,3 +48,14 @@ df3.count()
 
 df4 = df3.dropDuplicates()
 df4.count()
+
+animals = spark.read.format('csv').options(header='true',inferschema='true').load('/user/ja4874_nyu_edu/datasets/03_gbif_common_names.csv')
+animalsArray = animals.select("gbif_common_name","English name of Language","French name of Language","German name of Language").toPandas().values.reshape(-1)
+animalsArrayUnique = np.unique(animalsArray)
+
+//fix this
+def extract_animals(text):
+    tokenized_text = word_tokenize(text.lower())
+    return [word for word in tokenized_text if word in animalsArrayUnique]
+
+df['animals'] = df['text'].apply(extract_animals)
