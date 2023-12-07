@@ -106,10 +106,15 @@ parFile3.show()
 
 # Joining the datasets
 
-parFile4=parFile2.join(parFile3, parFile2.id_species ==  parFile3.gbif_id)
+#parFile4=parFile2.join(parFile3, parFile2.id_species ==  parFile3.gbif_id)
 #id_* can be removed
 # count:15322
-parFile5=parFile1.join(parFile4, parFile1.db_taxa_name ==  parFile4.db_taxa_name)
+#parFile5=parFile1.join(parFile4, parFile1.db_taxa_name ==  parFile4.db_taxa_name)
+#parFile5.show()
+
+parFile4=parFile2.join(parFile3, parFile2.id_species ==  parFile3.gbif_id).drop('gbif_id','db_taxa_name_clean','db')
+parFile4.show()
+parFile5=parFile1.join(parFile4, parFile1.db_taxa_name ==  parFile4.db_taxa_name,'fullouter').drop(parFile4.db_taxa_name).drop('db','subspecies','id_kingdom','id_phylum','id_class','id_order','id_family','id_genus','id_species','id_subspecies')
 parFile5.show()
 
 ## Datasets Union (external) (FOR EXPERIMENTING)
