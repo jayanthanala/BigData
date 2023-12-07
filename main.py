@@ -139,5 +139,9 @@ df5.write.parquet("/user/ak10514_nyu_edu/animals.parquet")
 df6 = spark.read.parquet("/user/ak10514_nyu_edu/animals.parquet")
 df6.limit(5)
 
-
 ## Remaining (Union the professor dataset and external dataset for analysis)
+
+df7 = df6.withColumn("standardized_use_type", lit("dead animal")).withColumn("subcategory", when(df6.label_product == "an animal body part","animal fibers").otherwise("dead (whole animal)")) .withColumn("main_category", lit("dead/raw")).withColumnRenamed("animal_names","gbif_common_name")
+profCols = ("retrieved","production_data","category","seller_type","seller_url","ships_to","ships_to","ships_to","id","loc_name","lat","lon","country","score_product","label","score")
+df8 = df7.drop(*profCols)
+parFile5.unionByName(df8, allowMissingColumns=True)
