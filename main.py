@@ -77,6 +77,8 @@ df4.select('domain').distinct().count()
 df4.groupBy(df4.seller)
 df4.limit(5)
 
+df4.groupBy("seller").agg({"title":"count"}).show(200)
+
 df4.select('location').distinct().count()
 df4.groupBy("location").agg({"location":"count"}).show()
 
@@ -95,7 +97,6 @@ df4.select([count(when(col(c).contains('None') | \
 
 
 ## Loading DS1 and analysing the stats 
-
 # ------ Run for first time and use the saved parquet file after ---------
 csvFile = spark.read.format('csv').options(header='true',inferschema='true').load('datasets/01_taxa_use_combos.csv')
 csvFile.write.parquet("01_taxa_use_combos.csv.parquet")
@@ -169,8 +170,13 @@ df6 = spark.read.parquet("/user/ak10514_nyu_edu/animals.parquet")
 df6.limit(5)
 
 ##  Union the Ad dataset and external dataset for analysis
-
 df7 = df6.withColumn("standardized_use_type", lit("dead animal")).withColumn("subcategory", when(df6.label_product == "an animal body part","animal fibers").otherwise("dead (whole animal)")) .withColumn("main_category", lit("dead/raw")).withColumnRenamed("animal_names","gbif_common_name")
 profCols = ("retrieved","production_data","category","seller_type","seller_url","ships_to","ships_to","ships_to","id","loc_name","lat","lon","country","score_product","label","score")
 df8 = df7.drop(*profCols)
-parFile5.unionByName(df8, allowMissingColumns=True)
+final=parFile5.unionByName(df8, allowMissingColumns=True)
+final.printSchema()
+final.summary('count')
+
+##  Writing the final DF to HDFS in various formats
+final.write.option("header",True).csv("finaldf.csv") ##CSV
+final.write.save("finaldf.json", format="json") ##JSON 
