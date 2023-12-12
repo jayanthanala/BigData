@@ -1,40 +1,43 @@
 #2Sparks
 
-from d3m import container
+## Importing Packages
+import os
 import datetime
 from pathlib import Path
-import os
 import pandas as pd
 import pyarrow.parquet as pq
 import pyarrow as pa
 import sys
 import numpy as np
 import re
-from nltk.tokenize import word_tokenize
 import nltk
+from nltk.tokenize import word_tokenize
+
+## PySpark Packages
 from pyspark import SparkContext, SparkConf
 from pyspark.sql.functions import format_string,col, when, coalesce, count, isnan,lit, udf
 from pyspark.sql.types import StringType
 
+## Beautify the Outputs
 from IPython.core.display import HTML
 display(HTML("<style>pre { white-space: pre !important; }</style>"))
 
-
+## Starting a Spark Context
 cf = SparkConf()
 cf.set("spark.submit.deployMode","client")
 sc = SparkContext.getOrCreate(cf)
 from pyspark.sql import SparkSession
 spark = SparkSession \
 	    .builder \
-	    .config("spark.some.config.option", "some-value") \
 	    .getOrCreate()
 spark.conf.set("spark.sql.repl.eagerEval.enabled",True)
 sc.setLogLevel('OFF')
 
-
+## Merging all the parquet files (Files are on HDFS)
 file_path_list = ['/shared/CS-GY-6513/projects/WildLife/processed-data-oct/*.parquet']
 df = spark.read.parquet(*file_path_list)
 
+## Cleaning column names, removing invalid characters
 df2 = df.select([col(c).alias(
         c.replace( '(', '')
         .replace( ')', '')
@@ -46,12 +49,14 @@ df2 = df.select([col(c).alias(
         .replace( '\t', '')
         .replace( ' ', '_')
     ) for c in df.columns])
-    
+
+## Opening the merged-parquet file with rectified schema
 df3 = spark.read.schema(df2.schema).parquet(*file_path_list)
 df3.printSchema()
 
+## Dropping all the duplicate entries
 df4 = df3.dropDuplicates()
-df4.count()
+df4.summary('count')
 
 ## Cleaning and Metrics of the dataset
 labels=["a real animal","an animal body part"]
