@@ -33,13 +33,13 @@ spark = SparkSession \
 spark.conf.set("spark.sql.repl.eagerEval.enabled",True)
 sc.setLogLevel('OFF')
 
-## Merging all the parquet files (Files are on HDFS)
+## Reading all the parquet files (Files are on HDFS)
 file_path_list = ['/shared/CS-GY-6513/projects/WildLife/processed-data-oct/*.parquet']
-df = spark.read.parquet(*file_path_list)
+wildlifeTraffic = spark.read.parquet(*file_path_list)
 
 ## Cleaning the dataset
 ## Cleaning column names, removing invalid characters
-df2 = df.select([col(c).alias(
+wildlifeTrafficClean = wildlifeTraffic.select([col(c).alias(
         c.replace( '(', '')
         .replace( ')', '')
         .replace( ',', '')
@@ -49,51 +49,52 @@ df2 = df.select([col(c).alias(
         .replace( '\n', '')
         .replace( '\t', '')
         .replace( ' ', '_')
-    ) for c in df.columns])
+    ) for c in wildlifeTraffic.columns])
 
 ## Opening the merged-parquet file with rectified schema
-df3 = spark.read.schema(df2.schema).parquet(*file_path_list)
-df3.printSchema()
+wildlifeTrafficStandard = spark.read.schema(wildlifeTrafficClean.schema).parquet(*file_path_list)
+wildlifeTrafficStandard.printSchema()
 
 ## Dropping all the duplicate entries
-df4 = df3.dropDuplicates()
-df4.summary('count')
+wildlifeTrafficWithoutDuplicates = wildlifeTrafficStandard.dropDuplicates()
+wildlifeTrafficWithoutDuplicates.summary('count')
 
 # Handle missing values in Prices (replace null values with mean) and for other int cols
 price_cols = [col_name for col_name, data_type in df4.dtypes if data_type in ['int', 'double']]
 for col_name in numerical_cols:
     mean_value = df4.agg({col_name: 'mean'}).collect()[0][0]
-    df4 = data.na.fill({col_name: mean_value})
+    wildlifeTrafficWithoutDuplicates = data.na.fill({col_name: mean_value})
 
-## Metrics of the dataset
+## Filtering the dataset and only selecting rows with label as real animal or animal body part
 labels=["a real animal","an animal body part"]
-df4 = df3.filter(df3.label_product.isin(labels))
+wildlifeTrafficFiltered = wildlifeTrafficWithoutDuplicates.filter(wildlifeTrafficWithoutDuplicates.label_product.isin(labels))
 df4.limit(5)
 
-df4.select('url').distinct().count()
+## Analysing the metrics
+wildlifeTrafficFiltered.select('url').distinct().count()
 
-df4.select('domain').distinct().count()
+wildlifeTrafficFiltered.select('domain').distinct().count()
 
-df4.groupBy(df4.seller)
-df4.limit(5)
+wildlifeTrafficFiltered.groupBy(df4.seller)
+wildlifeTrafficFiltered.limit(5)
 
-df4.groupBy("seller").agg({"title":"count"}).show(200)
+wildlifeTrafficFiltered.groupBy("seller").agg({"title":"count"}).show(200)
 
-df4.select('location').distinct().count()
-df4.groupBy("location").agg({"location":"count"}).show()
+wildlifeTrafficFiltered.select('location').distinct().count()
+wildlifeTrafficFiltered.groupBy("location").agg({"location":"count"}).show()
 
-df4.groupBy("country").agg({"country":"count"}).show()
+wildlifeTrafficFiltered.groupBy("country").agg({"country":"count"}).show()
 
-df4.summary("count").show()
+wildlifeTrafficFiltered.summary("count").show()
 
 ## shows count of non-null value records
-df4.select([count(when(col(c).contains('None') | \
+wildlifeTrafficFiltered.select([count(when(col(c).contains('None') | \
                             col(c).contains('null') | \
                             (col(c) == '' ) | \
                             col(c).isNull() | \
                             isnan(c), c 
                            )).alias(c)
-                    for c in df4.columns]).show() 
+                    for c in wildlifeTrafficFiltered.columns]).show() 
 
 
 ## Loading DS1 and analysing the stats 
@@ -163,20 +164,22 @@ def extract_animals(title):
 extract_animal_udf = udf(extract_animals, StringType())
 
 ##..... run only once and use the saved parquet file.....
-df5 = df4.withColumn("animal_names", extract_animal_udf(col("title")))
-df5.write.parquet("/user/ak10514_nyu_edu/animals.parquet")
+## adding extra columns as per other datasets
+wildlifeTrafficWithExtraCols = wildlifeTrafficFiltered.withColumn("animal_names", extract_animal_udf(col("title")))
+wildlifeTrafficWithExtraCols.write.parquet("/user/ak10514_nyu_edu/animals.parquet")
 ## ........................................................
-df6 = spark.read.parquet("/user/ak10514_nyu_edu/animals.parquet")
-df6.limit(5)
+wildlifeTrafficWithExtraColsDF = spark.read.parquet("/user/ak10514_nyu_edu/animals.parquet")
+wildlifeTrafficWithExtraColsDF.limit(5)
 
-##  Union the Ad dataset and external dataset for analysis
-df7 = df6.withColumn("standardized_use_type", lit("dead animal")).withColumn("subcategory", when(df6.label_product == "an animal body part","animal fibers").otherwise("dead (whole animal)")) .withColumn("main_category", lit("dead/raw")).withColumnRenamed("animal_names","gbif_common_name")
+##  Adding additional columns and removing unnecessary cols
+## Union the wildlife dataset and external dataset for analysis
+wildlifeTrafficWithExtraColsDF2 = wildlifeTrafficWithExtraColsDF.withColumn("standardized_use_type", lit("dead animal")).withColumn("subcategory", when(df6.label_product == "an animal body part","animal fibers").otherwise("dead (whole animal)")) .withColumn("main_category", lit("dead/raw")).withColumnRenamed("animal_names","gbif_common_name")
 profCols = ("retrieved","production_data","category","seller_type","seller_url","ships_to","ships_to","ships_to","id","loc_name","lat","lon","country","score_product","label","score")
-df8 = df7.drop(*profCols)
-final=parFile5.unionByName(df8, allowMissingColumns=True)
-final.printSchema()
-final.summary('count')
+wildlifeTrafficFinalDF = wildlifeTrafficWithExtraColsDF2.drop(*profCols)
+finalDF=parFile5.unionByName(wildlifeTrafficFinalDF, allowMissingColumns=True)
+finalDF.printSchema()
+finalDF.summary('count')
 
 ##  Writing the final DF to HDFS in various formats
-final.write.option("header",True).csv("finaldf.csv") ##CSV
-final.write.save("finaldf.json", format="json") ##JSON 
+finalDF.write.option("header",True).csv("finaldf.csv") ##CSV
+finalDF.write.save("finaldf.json", format="json") ##JSON 
